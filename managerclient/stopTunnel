@@ -1,0 +1,41 @@
+#!/usr/bin/env python
+
+import xmlrpclib
+import sys
+import os
+
+def printf(format,*args): sys.stdout.write(format%args)
+
+def gettunnelhost(file_name):
+    file_path = os.path.expanduser(file_name)
+    file_path = os.path.abspath(file_path)
+    lines = open(file_name,"r").readlines()
+    host = lines[0].replace("\r","").replace("\n","")
+    return host
+
+def usage(prog):
+    printf("usage is %s <tunnelId>",prog)
+    printf("\n")
+    printf("stops the tunnel specified by the id\n")
+    printf("The tunnel id is the number you get in [] \n")
+    printf("When you run the listTunnels command\n")
+
+cred = {"user":"ipv6user","passwd":"ipv6passwd"}
+port = 36240
+
+tunnel_file = "tunnel_host"
+printf("reading file \"%s\"",tunnel_file)
+lhost = gettunnelhost(tunnel_file)
+printf("%s\n",lhost)
+
+if len(sys.argv)<2:
+    usage(sys.argv[0])
+    exit()
+
+tid = sys.argv[1]
+
+url = "https://%s:%i"%(lhost,port)
+s = xmlrpclib.ServerProxy(url)
+s.stopTunnel(cred,tid)
+
+

@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+import xmlrpclib
+import sys
+import os
+
+def printf(format,*args): sys.stdout.write(format%args)
+
+def gettunnelhost(file_name):
+    file_path = os.path.expanduser(file_name)
+    file_path = os.path.abspath(file_path)
+    lines = open(file_name,"r").readlines()
+    host = lines[0].replace("\r","").replace("\n","")
+    return host
+
+def usage(prog):
+    printf("usage is %s <lport> <ipv6|ipv4|any> ",prog)
+    printf("<rhost> <rport> <ipv6|ipv4|any>\n")
+    printf("\n")
+    printf("Creates a tunnel between the host specified in\n")
+    printf("tunnel_host:lport to rhost:rport\n")
+    printf("\n")
+    printf("After the tunnel is created connecting to the\n")
+    printf("host specified by tunnel_host at port lport is just\n")
+    printf("like connecting to the rhost on port rport\n")
+
+cred = {"user":"ipv6user","passwd":"ipv6passwd"}
+port = 36240
+
+if len(sys.argv)<6:
+    usage(sys.argv[0])
+    exit()
+
+
+tunnel_file = "./tunnel_host"
+printf("reading \"%s\"\n",tunnel_file)
+
+lhost = gettunnelhost(tunnel_file)
+lport = sys.argv[1]
+lipv  = sys.argv[2].lower()
+rhost = sys.argv[3]
+rport = sys.argv[4]
+ripv  = sys.argv[5].lower()
+
+if lipv not in ["ipv6","ipv4"]:
+    lipv = "any"        
+
+if ripv not in ["ipv6","ipv4"]:
+    lipv = "any"        
+
+printf("Creating tunnel [%s]:%s -> [%s]:%s\n",lhost,lport,rhost,rport)
+printf("use listTunnels to see if the tunnel was created\n")
+
+url = "https://%s:%i"%(lhost,port)
+s = xmlrpclib.ServerProxy(url)
+s.startTunnel(cred,lhost,lport,lipv,rhost,rport,ripv)
+
+
+

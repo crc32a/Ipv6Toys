@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+import xmlrpclib
+import sys
+import os
+
+def printf(format,*args): sys.stdout.write(format%args)
+
+def gettunnelhost(file_name):
+    file_path = os.path.expanduser(file_name)
+    file_path = os.path.abspath(file_path)
+    lines = open(file_name,"r").readlines()
+    host = lines[0].replace("\r","").replace("\n","")
+    return host
+
+cred = {"user":"ipv6user","passwd":"ipv6passwd"}
+port = 36240
+
+tunnel_file = "tunnel_host"
+printf("\n")
+printf("reading file \"%s\"",tunnel_file)
+host = gettunnelhost(tunnel_file)
+printf("%s\n",host)
+
+url = "https://%s:%i"%(host,port)
+s = xmlrpclib.ServerProxy(url)
+tunnels = s.listTunnels(cred)
+
+tunnel_ids = tunnels.keys()
+tunnel_ids.sort()
+
+for tid in tunnel_ids:
+    lhost = tunnels[tid]["lhost"]
+    lport = tunnels[tid]["lport"]
+    lipv  = tunnels[tid]["lipv"]
+    rhost = tunnels[tid]["rhost"]
+    rport = tunnels[tid]["rport"]
+    ripv  = tunnels[tid]["ripv"]
+    args = (int(tid),lhost,lport,lipv,rhost,rport,ripv)
+    printf("[%5i] %s(%s)%s -> %s(%s)%s\n",*args)
+
+
