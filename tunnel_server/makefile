@@ -3,6 +3,8 @@ CF= -O0 -g -ggdb -I.
 
 all: echo_server lookup echo_client tunnel_server http_hello
 
+http_get.o: http_get.
+
 http_hello.o: http_hello.c
 	cc $(CF) -c http_hello.c
 
