@@ -1,0 +1,12 @@
+{
+    "passwd": "ipv6passwd", 
+    "cert": "/etc/localhost.crt", 
+    "tunnelcmd": "tunnel_server/bin/tunnel_server", 
+    "httphellocmd":"tunnel_server/bin/http_hello",
+    "max_child": 20,
+    "basepath":"/home/crc/workspace/Ipv6Toys",
+    "host": "localhost", 
+    "user": "ipv6user", 
+    "key": "/etc/localhost.key", 
+    "port": 36240
+}

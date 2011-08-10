@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # SSL wrap around stolen from  
 # http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/496786/index_txt
@@ -7,8 +7,6 @@ DAEMON = True
 DEBUG = True
 
 from OpenSSL import SSL
-from xml.dom.minidom import parse, parseString
-from xml.dom import Node
 import SimpleXMLRPCServer
 import SimpleHTTPServer
 import BaseHTTPServer
@@ -20,29 +18,17 @@ import OpenSSL
 import string
 import socket
 import signal
+import json
 import copy
 import time
 import sys
 import os
 import re
 
-###########################################################
-### Static mossoutils and mossolib pull begins here    ####
-###########################################################
-# Replaces                                                #  
-#from mossoutils import excuse,fprintf,printf,chop        #
-#from mossoutils.xmlpack import config_read,config_write  #
-#from mossoutils.text import missing_keys                 #
-###########################################################
-node_re = re.compile(".*NODE")
-nodetypemap = {}
+tunnel_str  = "(\S+)\s+(\S+).*(%s)\s+(\S+)\s+(\S+)\s+(\S+)\s+"
+tunnel_str += "(\S+)\s+(\S+)\s+(\S+).*"
 
-#Snatch a nodetypemap that contains a mapping from the value to an
-#actutual string for debugging. 
-#for example nodetypemap[1] will map to "ELEMENT_NODE"
-for key in Node.__dict__.keys():	
-    if node_re.match(key):
-        nodetypemap[ Node.__dict__.get(key) ] = key
+cmd_str  = "(\S+)\s+(\S+).*(%s)\s+(.*)"
 
 def printf(format, *args): print format % args,
     
@@ -65,12 +51,24 @@ def test_re(regex,lines):
             out.append(m.groups())
     return out
 
-def match_tunnel(lines,cmd):
+def match_cmd(lines,cmd):
     out = {}
     cmd_r = re.escape(cmd)
-    re_str  = "(\S+)\s+(\S+).*(%s)\s+(\S+)\s+(\S+)\s+(\S+)\s+"
-    re_str += "(\S+)\s+(\S+)\s+(\S+).*"
-    tunnel_re = re.compile(re_str%cmd_r)
+    cmd_re = re.compile(cmd_str%cmd_r)
+    for line in lines:
+        m = cmd_re.match(chop(line))
+        if m:
+            print m.groups()
+            pid = int(m.group(2))
+            cmd_name = m.group(3)
+            params = m.group(4)
+            out[pid] = "%s %s"%(m.group(3),m.group(4))
+    return out
+
+def match_tunnel(lines,cmd):
+    out = {}
+    tunnel_r = re.escape(cmd)
+    tunnel_re = re.compile(tunnel_str%tunnel_r)
     for line in lines:
         m = tunnel_re.match(line)
         if m:
@@ -137,228 +135,26 @@ def closepid(signum,frame):
         lf.flush()
     sys.exit()
 
-def shownodeType(node):
-    return nodetypemap[node.nodeType]
-
-def showtagName(node):
-    if not hasattr(node,"tagName"):
-        return ""
-    return node.tagName
-
-def scanNode(node,level = 0):
-    msg = "Class = \"%s\" "%node.__class__.__name__
-    msg += "NodeType=\"%s\""%shownodeType(node)
-    if node.nodeType == Node.ELEMENT_NODE:
-        msg += ", tag: \"%s\""%node.tagName
-    msg += "attr{"
-    if node.attributes:
-        for (key,val)  in node.attributes.items():
-            msg +=  "%s = %s "%(key,val)
-    msg += "}"
-    if node.nodeType == Node.TEXT_NODE:
-        msg += "text: "
-        if not node.wholeText.strip():
-            msg += "{Spaces}"
-        else:
-            msg += "\"%s\""%(node.wholeText)
-            
-    
-    print " " * level * 4, msg
-    if node.hasChildNodes:
-        for child in node.childNodes:
-            scanNode(child,level + 1 )
-
-def xml_escape(str_in):
-    out = str_in.replace("&","&amp;")
-    out = out.replace(">","&gt;")
-    out = out.replace("<","&lt;")
-    out = out.replace("\"","&quote;")
-    return out
-
-def xml_deescape(str_in):
-    out = str_in.replace("&quote;","\"")
-    out = out.replace("&lt;","<")
-    out = out.replace("&gt;",">")
-    out = out.replace("&amp;","&")
-    return out    
-
-class ConfigReader(object):
-    def __init__(self,space=4):
-        self.space=4
-        self.typemap = { type(0)         : (" type=\"int\"","int"),
-                         type(0.0)       : (" type=\"float\"","float"),
-                         type(list())    : (" type=\"list\"","list"),
-                         type({})        : (" type=\"dict\"","dict"),
-                         type(tuple(())) : (" type=\"tuple\"","tuple"),
-                         type("")        : ("","str")
-                       }
-
-    def node_attrs(self,node):
-        if node.attributes:
-            return dict([(key,val) for (key,val) in node.attributes.items()])
-        # Return an empty Dictionary so we can sainly search its 
-        # empty list of keys
-        return {} 
-
-    def getattrtype(self,node):
-        attrs = self.node_attrs(node)
-        if "type" in attrs:
-            return attrs["type"]
-        else:
-            return ""
-
-    def getstr(self,node):
-        return node.childNodes[0].wholeText #This should be a TEXT_NODE
-
-    def getlist(self,node):
-        out = []
-        for child in node.childNodes:
-            if child.nodeType == Node.ELEMENT_NODE:
-                found_item = self.getitem(child)
-                out.append(found_item)
-        return out
-
-    def gettuple(self,node):
-        out = []
-        for child in node.childNodes:
-            if child.nodeType == Node.ELEMENT_NODE:
-                found_item = self.getitem(child)
-                out.append(found_item)
-        return tuple(out)
-
-    def getdict(self,node):
-        out = {}
-        for child in node.childNodes:
-            if child.nodeType == Node.ELEMENT_NODE:
-                 found_item = self.getitem(child)
-                 out[child.tagName] = found_item
-        return out
-        
-    def getitem(self,node):
-        attrtype = self.getattrtype(node)
-        if attrtype == "list":
-            found_list = self.getlist(node)
-            return found_list
-        if attrtype == "tuple":
-            found_tuple = self.gettuple(node)
-            return found_tuple
-        if attrtype == "dict":
-            found_dict = self.getdict(node)
-            return found_dict
-        if attrtype == "int":
-            found_str = self.getstr(node)
-            return int(found_str)
-        if attrtype == "float":
-            found_str = self.getstr(node)
-            return float(self.getstr(node))
-        if attrtype == "string":
-            found_str = self.getstr(node)
-            return found_str
-        else:
-            #Assume its a string otherwise
-            found_str = self.getstr(node)
-            return xml_deescape(found_str)
-
-    def loads(self,xml_data):
-        doc = parseString(xml_data)
-        return self.parse(doc)
-
-    def setspace(self,level):
-        return " "*self.space*level
-
-    def setlist(self,name,list_in,level):
-        space = self.setspace(level)
-        (found_type,type_str) = self.settype(list_in)
-        xml_data  = "%s<%s%s>\n"%(space,name,found_type)
-        for element in list_in:
-            xml_data += self.setitem("le",element,level + 1 )
-        xml_data  += "%s</%s>\n"%(space,name)
-        return xml_data
-
-    def settuple(self,name,tuple_in,level):
-        space = self.setspace(level)
-        (found_type,type_str) = self.settype(tuple_in)
-        xml_data  = "%s<%s%s>\n"%(space,name,found_type)
-        for element in tuple_in:
-            xml_data += self.setitem("te",element,level + 1 )
-        xml_data  += "%s</%s>\n"%(space,name)
-        return xml_data
-
-    def setdict(self,name,val,level):
-        (found_type,type_str) = self.settype(val)
-        space = self.setspace(level)
-        xml_data  = "%s<%s%s>\n"%(space,name,found_type)
-        for (key,val)  in val.items():
-            xml_data += self.setitem(key,val,level + 1 )
-        xml_data  += "%s</%s>\n"%(space,name)
-        return xml_data
-   
-    def setitem(self,name,val,level):
-        space = self.setspace(level)
-        (found_type,type_str) = self.settype(val)
-        if   type_str == "list":
-            xml_data = self.setlist(name,val,level + 1)
-        elif type_str == "tuple":
-            xml_data = self.settuple(name,val,level + 1)
-        elif type_str == "dict":
-            xml_data = self.setdict(name,val,level + 1)
-        elif type_str == "int":
-            xml_data  = "%s<%s%s>"%(space,name,found_type)
-            xml_data += "%i</%s>\n"%(val,name)
-        elif type_str == "float":
-            pass
-            xml_data  = "%s<%s%s>"%(space,name,found_type)
-            xml_data += "%f</%s>\n"%(val,name)
-        else:
-            #Assume this is a string
-            str_out = xml_escape(val)
-            xml_data  = "%s<%s%s>"%(space,name,found_type)
-            xml_data += "%s</%s>\n"%(str_out,name)
-        return xml_data
-
-    def dumps(self,config):
-        level = 0
-        xml_data  = ""
-        xml_data += "<?xml version=\"1.0\" ?>\n"
-        xml_data += self.setitem("config",config,level + 0)
-        return xml_data
-
-    def write(self,filename,config):
-        xml_data = self.dumps(config)
-        fp = open(filename,"w")
-        fp.write(xml_data)
-        fp.close()
-
-    def settype(self,item):
-        if type(item) in self.typemap:
-           (found_xml,found_type) = self.typemap[ type(item) ]
-           return (found_xml,found_type)
-        else:
-            return ("",None)
-
-    def read(self,filename):
-        doc = parse(filename)
-        return self.parse(doc)
-    
-    def parse(self,doc):
-        config = {}
-        root = doc.childNodes[0]
-        for child in root.childNodes:
-            attrtype = self.getattrtype(child)
-            if child.nodeType == Node.ELEMENT_NODE:
-                found_item = self.getitem(child)
-                config[child.tagName] = found_item
-        return config
-
 def config_read(file_name):
-    cr = ConfigReader()
-    config = cr.read(file_name)
+    file_path = os.path.expanduser(file_name)
+    jsonStr = open(file_path).read()
+    config = json.loads(jsonStr)
     return config 
 
 
 def config_write(file_name,config):
-    cr = ConfigReader()
-    cr.write(file_name,config);
+    file_path = os.path.expanduser(file_name)
+    jsonStr = json.dumps(config,indent=4)
+    open(file_path,"w").write(jsonStr)
+
+def bury_the_dead():
+  while True:
+    try:
+      (pid,stats) = os.waitpid(-1,os.WNOHANG)
+      if (pid,stats) == (0,0):
+        break
+    except:
+      break
 
 def missing_keys(required_keys,keys_found):
     required_set = set(required_keys)
@@ -368,19 +164,12 @@ def missing_keys(required_keys,keys_found):
 def now():
    return datetime.datetime.now()
 
-########################################################
-### Static mossoutils and mossolib pull ENDS here ####
-########################################################
-
-#Dead code for now but may be needed later
 class FuncXMLRPCError(Exception):
     def __init__(self,value):
         self.value = value
 
     def __str__(self):
       return repr(self.value)
-
-#rename this class and register it at the very bottom
 
 class AuthException(Exception):
     def __init__(self,val):
@@ -410,10 +199,11 @@ def Auth(func):
 
 
 class TunnelManager(object):
-    def __init__(self,cred,tunnelcmd):
+    def __init__(self,cred,host,tunnelcmd,httphellocmd):
         self.cred = cred
         self.tc = tunnelcmd
-        pass
+        self.hc = httphellocmd
+        self.ip = socket.gethostbyname(host)
 
     # This function replaces the forking code that used to happen on
     # the mossointernal app.
@@ -425,6 +215,47 @@ class TunnelManager(object):
         return out
 
     @Auth
+    def waitpid(self):
+        (pid,stats) = os.waitpid(-1,os.WNOHANG)
+        return (pid,stats)
+        
+    @Auth
+    def startHelloServer(self):
+        try:
+            pid = os.fork()
+            if pid == 0:
+                mypid = os.getpid()
+                try:
+                    args = (self.hc,self.hc,self.ip,"80","ipv4","Hello")
+                    frm = "os.execl%s"%args.__repr__()
+                    fprintf(lf,"%s\n",frm)
+                    lf.flush()
+                    os.execl(*args)
+                except:
+                    fprintf(lf,"Exception: %s\n",excuse())
+                    os._exit(0)
+            if pid >0:
+                return pid
+            if pid <0:
+                return -1
+        except:
+            fprintf(lf,"%s\n",excuse())
+            return -1
+        return req_id
+        
+
+    @Auth 
+    def stopHelloServer(self):
+        lines = os.popen("ps -ef -ww","r").readlines()
+        helloservers = match_cmd(lines,self.hc)
+        pids = helloservers.keys()
+        pids.sort()    
+        for pid in pids:
+            printf("Killing %s\n",helloservers[pid])
+            os.kill(pid,signal.SIGTERM)
+        return pids
+
+    @Auth
     def stopTunnel(self,tid):
         lines = os.popen("ps -ef -ww","r").readlines()
         out = match_tunnel(lines,self.tc)
@@ -432,7 +263,7 @@ class TunnelManager(object):
             return "Tunnel Not found"
         os.popen("kill %s"%tid)
         return "killed tunnel"
-        
+
 
     @Auth
     def startTunnel(self,lhost,lport,lipv,rhost,rport,ripv):
@@ -553,157 +384,159 @@ class SecureXMLRpcRequestHandler(SimpleXMLRPCServer.SimpleXMLRPCRequestHandler):
             self.wfile.flush()
             self.connection.shutdown() # Modified here!
 
+if __name__ == "__main__":
+    log_file = sys.argv[0]
+    log_file = os.path.basename(log_file)        #strip off the leading path
+    log_file = os.path.splitext(log_file)[0]     #strip off the .py
+    log_file = os.path.join("/var/log",log_file) #Then point it to the log dir
+    log_file += ".log"                           #Oh yea put .log on the end
 
-log_file = sys.argv[0]
-log_file = os.path.basename(log_file)        #strip off the leading path
-log_file = os.path.splitext(log_file)[0]     #strip off the .py
-log_file = os.path.join("/var/log",log_file) #Then point it to the log dir
-log_file += ".log"                           #Oh yea put .log on the end
+    prog = os.path.basename(sys.argv[0])         #programe name
 
-prog = os.path.basename(sys.argv[0])         #programe name
+    if len(sys.argv)<2:
+        config_file = os.path.splitext(prog)[0] + ".json"
+        config_file = os.path.join("/etc",config_file)
+    else:
+        config_file = sys.argv[1]
 
-if len(sys.argv)<2:
-    config_file = os.path.splitext(prog)[0] + ".xml"
-    config_file = os.path.join("/etc",config_file)
-else:
-    config_file = sys.argv[1]
+    pid_name = os.path.basename(sys.argv[0]) + ".pid"
+    lock_path = os.path.join("/var/run",pid_name)
 
-pid_name = os.path.basename(sys.argv[0]) + ".pid"
-lock_path = os.path.join("/var/run",pid_name)
-
-if DEBUG:
-    printf("Useing \"%s\" as config file\n",config_file)
-    sys.stdout.flush()
-
-try:
-   config = config_read(config_file)
-except:
-   try:
-      msg="Coulden't read config_file %s excuse %s\n"%(config_file,excuse())
-      printf("%s",msg)
-      lfp = open(log_file,"a")
-      fprintf(lfp,"%s",msg)
-      lfp.close()
-      sys.exit()
-   except IOError:
-      printf("Couden't open log file either %s reason%s\n",log_file,excuse())
-      sys.exit()
-
-#Append the extra config options you want here
-required_keys = [ "cert" , "key" , "port" ,"max_child","passwd"]
-
-missing_variables = missing_keys(required_keys,config.keys())
-
-
-if len(missing_variables) > 0:
-    printf("Error missing config variables:\n")
-    for missing_var in missing_variables:
-        printf("%s = <insert value here>\n",missing_var)
-    printf("Please add the above lines to your config file\n")
-    sys.exit()
-
-if "host" in config:
-    HOST = config["host"]
-else:
-    HOST = socket.gethostname()
-
-KEYFILE         = config["key"]
-CERTFILE        = config["cert"]
-PORT            = config["port"]
-MAXCHILD        = config["max_child"]
-CRED = {"user":config["user"],"passwd":config["passwd"]}
-TUNNELCMD	= config["tunnelcmd"]
-
-#Insert your other global variable options here
-
-if DEBUG:
-    printf("%s started at %s\n",os.path.basename(sys.argv[0]),time.asctime())
-    printf("Usering config\n")
-    printf("KEYFILE = %s\n",KEYFILE)
-    printf("CERTFILE = %s\n",CERTFILE)
-    printf("HOST = %s\n",HOST)
-    printf("PORT = %s\n",PORT)
-    printf("MAXCHILD  = %i\n",MAXCHILD)
-    sys.stdout.flush()
-
-
-#start the SecureXMLRPC
-Handler = SecureXMLRpcRequestHandler # Alias this big ass name
-Server  = SecureXMLRPCServer         # Alias this one too
-
-#In order to be a real daemon process we need to fork off twice 
-#aparently
-
-if DAEMON:
-    printf("DAEMON MODE\n")
-
-
-    if os.fork():
-        os._exit(0)
-
-    os.setsid()
-
-
-    if os.fork():
-        os._exit(0)
-
-    os.chdir("/")
-    os.umask(0)
+    if DEBUG:
+        printf("Useing \"%s\" as config file\n",config_file)
+        sys.stdout.flush()
 
     try:
-        lf = open(log_file,"a")
-        fprintf(sys.stderr,"Useing %s for log file\n",log_file)
+        config = config_read(config_file)
     except:
-        user_dir = os.path.expanduser("~/")
-        new_file = os.path.basename(log_file)
-        log_path = os.path.join(user_dir,new_file)
-        fprintf(sys.stderr,"Error opening %s for logging\n",log_path)
-        fprintf(sys.stderr,"Useing %s instead\n",log_path)
         try:
-            lf = open(log_path,"a")
+           msg="Coulden't read config_file %s excuse %s\n"%(config_file,excuse())
+           printf("%s",msg)
+           lfp = open(log_file,"a")
+           fprintf(lfp,"%s",msg)
+           lfp.close()
+           sys.exit()
+        except IOError:
+           printf("Couden't open log file either %s reason%s\n",log_file,excuse())
+           sys.exit()
+
+    #Append the extra config options you want here
+    required_keys = [ "cert" , "key" , "port" ,"max_child","passwd"]
+
+    missing_variables = missing_keys(required_keys,config.keys())
+
+
+    if len(missing_variables) > 0:
+        printf("Error missing config variables:\n")
+        for missing_var in missing_variables:
+            printf("%s = <insert value here>\n",missing_var)
+        printf("Please add the above lines to your config file\n")
+        sys.exit()
+
+    if "host" in config:
+        HOST = config["host"]
+    else:
+        HOST = socket.gethostname()
+
+    KEYFILE         = config["key"]
+    CERTFILE        = config["cert"]
+    PORT            = config["port"]
+    MAXCHILD        = config["max_child"]
+    CRED            = {"user":config["user"],
+                       "passwd":config["passwd"]}
+    BASEPATH        = config["basepath"]
+    TUNNELCMD	    = os.path.join(BASEPATH,config["tunnelcmd"])
+    HTTPHELLOCMD    = os.path.join(BASEPATH,config["httphellocmd"])
+
+    #Insert your other global variable options here
+
+    if DEBUG:
+        printf("%s started at %s\n",os.path.basename(sys.argv[0]),time.asctime())
+        printf("Usering config\n")
+        printf("KEYFILE = %s\n",KEYFILE)
+        printf("CERTFILE = %s\n",CERTFILE)
+        printf("HOST = %s\n",HOST)
+        printf("PORT = %s\n",PORT)
+        printf("MAXCHILD  = %i\n",MAXCHILD)
+        sys.stdout.flush()
+
+
+    #start the SecureXMLRPC
+    Handler = SecureXMLRpcRequestHandler # Alias this big ass name
+    Server  = SecureXMLRPCServer         # Alias this one too
+
+    #In order to be a real daemon process we need to fork off twice 
+    #aparently
+
+    if DAEMON:
+        printf("DAEMON MODE\n")
+
+
+        if os.fork():
+            os._exit(0)
+
+        os.setsid()
+
+        if os.fork():
+            os._exit(0)
+
+        os.chdir("/")
+        os.umask(0)
+
+        try:
+            lf = open(log_file,"a")
+            fprintf(sys.stderr,"Useing %s for log file\n",log_file)
         except:
-            fprintf(sys.stderr,"Ok guess that didn't work either\n")
-            fprintf(sys.stderr,"Useing /dev/null\n")
-            lf = open("/dev/null","w")           
+            user_dir = os.path.expanduser("~/")
+            new_file = os.path.basename(log_file)
+            log_path = os.path.join(user_dir,new_file)
+            fprintf(sys.stderr,"Error opening %s for logging\n",log_path)
+            fprintf(sys.stderr,"Useing %s instead\n",log_path)
+            try:
+                lf = open(log_path,"a")
+            except:
+                fprintf(sys.stderr,"Ok guess that didn't work either\n")
+                fprintf(sys.stderr,"Useing /dev/null\n")
+                lf = open("/dev/null","w")           
 
    
 
-    #close terminal file pointers
-    si = file("/dev/null", 'r')
-    so = file("/dev/null", 'a+')
-    se = file("/dev/null", 'a+', 0)
-    os.dup2(si.fileno(), sys.stdin.fileno())
-    os.dup2(so.fileno(), sys.stdout.fileno())
-    os.dup2(se.fileno(), sys.stderr.fileno())    
+        #close terminal file pointers
+        si = file("/dev/null", 'r')
+        so = file("/dev/null", 'a+')
+        se = file("/dev/null", 'a+', 0)
+        os.dup2(si.fileno(), sys.stdin.fileno())
+        os.dup2(so.fileno(), sys.stdout.fileno())
+        os.dup2(se.fileno(), sys.stderr.fileno())    
 
-    fprintf(lf,"%s[%i] started at %s\n",prog,os.getpid(),time.asctime())
-    lf.flush()
-else:
-    lf = sys.stderr
+        fprintf(lf,"%s[%i] started at %s\n",prog,os.getpid(),time.asctime())
+        lf.flush()
+    else:
+        lf = sys.stderr
 
-#log pid file
-try:
-    fp = open(lock_path,"w")
-    fp.write("%s"%os.getpid())
-    fp.close()
-except:
-    fprintf(lf,"Error writing to \"%s\"\n",lock_path)
-    fprintf(lf,"Excuse is %s\n",excuse())
-    lf.flush()
+    #log pid file
+    try:
+        fp = open(lock_path,"w")
+        fp.write("%s"%os.getpid())
+        fp.close()
+    except:
+        fprintf(lf,"Error writing to \"%s\"\n",lock_path)
+        fprintf(lf,"Excuse is %s\n",excuse())
+        lf.flush()
 
-try:
-   fprintf(lf,"bound to host=%s port =%s\n",HOST,PORT)
-   lf.flush()
-   signal.signal(signal.SIGTERM,closepid)
-   s = Server((HOST,PORT),Handler)
-   s.register_instance(TunnelManager(CRED,TUNNELCMD),allow_dotted_names=True)
-except:
-   msg = "Error starting server reason\nExcuse: %s\n"%excuse()
-   fprintf(lf,"%s",msg)
-   sys.exit()
+    try:
+        fprintf(lf,"bound to host=%s port =%s\n",HOST,PORT)
+        lf.flush()
+        signal.signal(signal.SIGTERM,closepid)
+        s = Server((HOST,PORT),Handler)
+        s.register_instance(TunnelManager(CRED,HOST,TUNNELCMD,HTTPHELLOCMD),allow_dotted_names=True)
+    except:
+        msg = "Error starting server reason\nExcuse: %s\n"%excuse()
+        fprintf(lf,"%s",msg)
+        sys.exit()
 
-try:
-    s.serve_forever()
-except:
-    closepid(None,None)
-    sys.exit()
+    try:
+        s.serve_forever()
+    except:
+        closepid(None,None)
+        sys.exit()

@@ -1,6 +1,6 @@
 #!/bin/bash
 #For debugging
-cp ipv6tunnelManager.xml /etc
+cp ipv6tunnelManager.json /etc
 killall -r "tunnel_server"
 killall -r "ipv6tunnelManager"
 ./ipv6tunnelManager.py

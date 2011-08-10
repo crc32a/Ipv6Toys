@@ -1,0 +1,27 @@
+#!/usr/bin/env python
+
+import xmlrpclib
+import sys
+import os
+
+def printf(format,*args): sys.stdout.write(format%args)
+
+def usage(prog):
+    printf("usage is %s <helloserverip>",prog)
+    printf("\n")
+    printf("Starts the helloserver\n")
+
+cred = {"user":"ipv6user","passwd":"ipv6passwd"}
+port = 36240
+
+if len(sys.argv)<2:
+    usage(sys.argv[0])
+    exit()
+
+host = sys.argv[1]
+
+print("Starting hello server\n")
+url = "https://%s:%i"%(host,port)
+s = xmlrpclib.ServerProxy(url)
+pids = s.stopHelloServer(cred)
+print pids
