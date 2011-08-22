@@ -1,9 +1,13 @@
 BIN=./bin
 CF= -O0 -g -ggdb -I.
 
-all: echo_server lookup echo_client tunnel_server http_hello
+all: echo_server lookup echo_client tunnel_server http_hello test_ringcharbuff
 
-http_get.o: http_get.
+test_ringcharbuff.o: ringcharbuff.h test_ringcharbuff.c
+	cc $(CF) -c test_ringcharbuff.c
+
+regutil.o: regutil.h regutil.c
+	cc $(CF) -c regutil.c
 
 http_hello.o: http_hello.c
 	cc $(CF) -c http_hello.c
@@ -39,9 +43,12 @@ echo_client: echo_client.o socktools.o ringcharbuff.o
 tunnel_server: tunnel_server.o socktools.o ringcharbuff.o
 	cc $(CF) -o $(BIN)/tunnel_server tunnel_server.o socktools.o ringcharbuff.o
 
-http_hello: http_hello.o socktools.o ringcharbuff.o
-	cc $(CF) -o $(BIN)/http_hello http_hello.o socktools.o ringcharbuff.o
+http_hello: http_hello.o socktools.o ringcharbuff.o regutil.o
+	cc $(CF) -o $(BIN)/http_hello http_hello.o socktools.o ringcharbuff.o regutil.o
+
+test_ringcharbuff: test_ringcharbuff.o ringcharbuff.o
+	cc $(CF) -o $(BIN)/test_ringcharbuff test_ringcharbuff.o ringcharbuff.o
 clean:
 	rm -rf *.o
-	rm -rf *.kdbg
+	rm ./bin/.kdbg*
 	rm ./bin/*

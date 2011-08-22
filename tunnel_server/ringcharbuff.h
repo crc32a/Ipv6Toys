@@ -20,3 +20,4 @@ int ringcharbuff_get(ringcharbuff_t *r,char *data,size_t nbytes);
 int ringcharbuff_dec(ringcharbuff_t *r,size_t nbytes);
 int ringcharbuff_resize(ringcharbuff_t *r,size_t nbytes,int *err);
 int ringcharbuff_clear(ringcharbuff_t *r);
+int ringcharbuff_hasline(ringcharbuff_t *r);

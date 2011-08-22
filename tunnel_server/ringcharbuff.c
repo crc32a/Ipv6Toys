@@ -70,12 +70,36 @@ int ringcharbuff_print(ringcharbuff_t *r) {
     printf("\n    ");
 
     for(i=0;i<s;i++) {
-        printf("%c",r->data[i]);
+        switch(r->data[i]){
+            case '\n':
+                printf("%c",'~');
+                break;
+            default:
+                printf("%c",r->data[i]);
+                break;
+        }
     }
     printf("\n    ");
     printf("u=%i f=%i s=%i\n",u,f,s);
     return 0;
 }
+
+int ringcharbuff_hasline(ringcharbuff_t *r){
+    int u = r->used;
+    int di = 0;
+    int ri = r->h;
+    if(r->size == 0) return 0;
+    while(u>0){
+        if(r->data[ri]=='\n'){
+            return di + 1;
+        }
+        ri = (ri +1)%(r->size);
+        di++;
+        u--;
+    }
+    return 0;
+}
+
 
 int ringcharbuff_get(ringcharbuff_t *r,char *data,size_t nbytes) {
     int u = r->used;

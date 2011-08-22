@@ -12,9 +12,10 @@
 #include<errno.h>
 #include<stdio.h>
 #include<netdb.h>
-
+#include<pcre.h>
 #include"socktools.h"
 #include"ringcharbuff.h"
+#include"regutil.h"
 
 #define STRSIZE 1024
 #define BLOCKSIZE 4096
@@ -70,6 +71,7 @@ int readuntil(int fd,char *end,size_t n){
     printf("\n");
     return 0;
 }
+
 
 int hello_server(int cs,char *msg) {
     ssize_t nbytes;
