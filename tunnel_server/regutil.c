@@ -20,6 +20,7 @@ int showString(char *str){
     printf("\n");
 }
 
+
 char *getGroup(int idx,int *ov,char *strIn,int *error){
     int i;
     char *out;
@@ -43,7 +44,7 @@ char *getGroup(int idx,int *ov,char *strIn,int *error){
         oPtr++;
         sPtr++;
     }
-    oPtr='\0';
+    *oPtr='\0';
     *error = 0;
     return out;
 }

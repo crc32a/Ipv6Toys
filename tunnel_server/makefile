@@ -1,12 +1,16 @@
 BIN=./bin
 CF= -O0 -g -ggdb -I.
 
-all: echo_server lookup echo_client tunnel_server http_hello test_ringcharbuff
+all: echo_server lookup echo_client tunnel_server http_hello test_ringcharbuff \
+    test_regutil
+
+test_regutil.o: test_regutil.c
+	cc $(CF) -c test_regutil.c
 
 test_ringcharbuff.o: ringcharbuff.h test_ringcharbuff.c
 	cc $(CF) -c test_ringcharbuff.c
 
-regutil.o: regutil.h regutil.c
+regutil.o: regutil.h regutil.c regutil.h
 	cc $(CF) -c regutil.c
 
 http_hello.o: http_hello.c
@@ -44,10 +48,14 @@ tunnel_server: tunnel_server.o socktools.o ringcharbuff.o
 	cc $(CF) -o $(BIN)/tunnel_server tunnel_server.o socktools.o ringcharbuff.o
 
 http_hello: http_hello.o socktools.o ringcharbuff.o regutil.o
-	cc $(CF) -o $(BIN)/http_hello http_hello.o socktools.o ringcharbuff.o regutil.o
+	cc $(CF) -o $(BIN)/http_hello http_hello.o socktools.o ringcharbuff.o regutil.o -lpcre
 
 test_ringcharbuff: test_ringcharbuff.o ringcharbuff.o
 	cc $(CF) -o $(BIN)/test_ringcharbuff test_ringcharbuff.o ringcharbuff.o
+
+test_regutil: test_regutil.o regutil.o
+	cc $(CF) -o $(BIN)/test_regutil test_regutil.o regutil.o -lpcre
+
 clean:
 	rm -rf *.o
 	rm ./bin/.kdbg*
