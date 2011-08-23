@@ -1,0 +1,2 @@
+HTTP\s+(\S+)\s+(\S+)\s+(\S+)
+HTTP GET /loadbalancers/sts HTTP/1.1
