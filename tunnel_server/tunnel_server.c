@@ -17,8 +17,8 @@
 #include"ringcharbuff.h"
 
 #define STRSIZE 1024
-#define BLOCKSIZE 4096*128
-#define INITRINGSIZE 16738
+#define BLOCKSIZE 1024*64
+#define INITRINGSIZE 2*BLOCKSIZE
 #define SASIZE 64
 #define BACKLOG 5
 
