@@ -17,7 +17,7 @@
 #include"ringcharbuff.h"
 
 #define STRSIZE 1024
-#define BLOCKSIZE 4096
+#define BLOCKSIZE 4096*128
 #define INITRINGSIZE 16738
 #define SASIZE 64
 #define BACKLOG 5
@@ -78,12 +78,18 @@ int max(int a,int b) {
     return b;
 }
 
-int ringup(ringcharbuff_t *r) {
+int ringup(ringcharbuff_t *r,int required) {
     int err;
-    size_t size;
-    size = ringcharbuff_size(r);
-    size += INITRINGSIZE;
-    ringcharbuff_resize(r,size,&err);
+    int size;
+    while(ringcharbuff_free(r) < required){
+        size = ringcharbuff_size(r);
+        size *= 2;
+        printf("resizeing ringchar to %i bytes\n",size);
+        if(!ringcharbuff_resize(r,size,&err)){
+            printf("Out of memory\n");
+            exit(-1);
+        }
+    }
 }
 
 int fd_setStr(fd_set *fd,int cs,int ss,char *block,size_t bsize){
@@ -110,7 +116,7 @@ int FD_ISEMPTY(fd_set *fs,int cs,int ss) {
 
 int proxy_server(int cs,int ss) {
     pid_t pid;
-    int rsize;
+    int rfree;
     int stat;
     int err;
     char block[BLOCKSIZE + 1];
@@ -135,7 +141,7 @@ int proxy_server(int cs,int ss) {
         FD_ZERO(&ws);
 
         printf("pid[%i] ceof = {%i,%i} seof={%i,%i} ",pid,ceof[0],ceof[1],seof[0],seof[1]);
-        printf("cr=%i sr=%i\n",ringcharbuff_used(cr),ringcharbuff_used(sr));
+        printf("cr=(%i,%i) sr=(%i,%i)\n",ringcharbuff_used(cr),ringcharbuff_size(cr),ringcharbuff_used(sr),ringcharbuff_size(sr));
         fflush(stdout);
 
         if(!ceof[0]) FD_SET(cs,&rs);
@@ -145,7 +151,7 @@ int proxy_server(int cs,int ss) {
         if(ceof[1]) ringcharbuff_clear(sr);
 
         if(!seof[1] && !ringcharbuff_empty(cr)) {
-            printf("pid[%5i] needs to write %i bytes to ss\n",
+            printf("pid[%5i] needs to write %i bytes to cr\n",
                  pid,ringcharbuff_used(cr));
             FD_SET(ss,&ws);
         }
@@ -187,10 +193,10 @@ int proxy_server(int cs,int ss) {
 
         if(FD_ISSET(cs,&rs)) {
             br = myread(cs,block,BLOCKSIZE,&stat);
-            rsize = ringcharbuff_used(cr);
+            rfree = ringcharbuff_free(cr);
             printf("pid[%5i] read %i bytes from cs\n",pid,(int)br);
-            if(br > rsize) {
-                ringup(cr);
+            if(br > rfree) {
+                ringup(cr,br);
             }
             ringcharbuff_add(cr,block,br);
             if(stat) {
@@ -202,10 +208,10 @@ int proxy_server(int cs,int ss) {
         if(FD_ISSET(ss,&rs)) {
             stat = 0;
             br = myread(ss,block,BLOCKSIZE,&stat);
-            rsize = ringcharbuff_used(sr);
+            rfree = ringcharbuff_free(sr);
             printf("pid[%5i] read %i bytes from ss\n",pid,(int)br);
-            if(br > rsize) {
-                ringup(sr);
+            if(br > rfree) {
+                ringup(sr,br);
             }
             ringcharbuff_add(sr,block,br);
             if(stat) {
