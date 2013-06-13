@@ -18,35 +18,72 @@
 
 
 #define STRSIZE 512
-#define BUFFSIZE 4096
 #define BACKLOG 5
 #define SASIZE 64
 #define ECHOSIZE 5
 
+char *bases[] = {"bytes","KiB","MiB","GiB","TiB","PiB","EiB","Zib"};
+int nbases=7;
+double gettimevalue()
+   {
+    double out;
+    struct timeval tv;
+    if(gettimeofday(&tv,NULL)==-1)
+      {
+       perror("\nError in call to gettimeofday(&tv)");
+       return(-1.0);
+      }
+    out=(double)tv.tv_sec+(double)tv.tv_usec*0.000001;
+    return(out);
+   }
+
+int printRate(double rate){
+    int bi=0;
+    while(bi<nbases && rate >= 1000.0){
+        bi++;
+        rate /= 1000.0;
+    }
+    printf("%f %s/S",rate,bases[bi]);
+}
+
 int usage(char *prog) {
-    printf("usage is %s <localhostname> <localport>\n",prog);
+    printf("usage is %s <localhostname> <localport> <buffSize>\n",prog);
     printf("\n");
     printf("Echo back the text the user inputs.\n");
     printf("\n");
     return 0;
 }
 
-int echo_server(int cs) {
+int echo_server(int cs,int buffsize) {
     int64_t bytes_read=0;
     char *inptr;
     size_t nbytes;
-    char outptr[BUFFSIZE + ECHOSIZE +1];
-
+    char *outptr;
+    double beg_time = gettimevalue();
+    double end_time;
+    double secs;
+    double rate;
+    int out_size = sizeof(char)*(buffsize+ECHOSIZE + 1);
+    outptr = (char *)malloc(out_size);
+    if(outptr == NULL){
+        printf("Error allocating %i bytes for outptr\n",out_size);
+        exit(0);
+    }
     inptr = outptr + ECHOSIZE;
     strcpy(outptr,"echo:");
     while(1) {
-        nbytes = read(cs,inptr,BUFFSIZE);
+        nbytes = read(cs,inptr,buffsize);
         bytes_read += nbytes;
         if(nbytes==0) {
             break;
         }
     }
-    printf("Read %" PRId64 " bytes from Client\n",bytes_read);
+    end_time = gettimevalue();
+    secs = end_time - beg_time;
+    rate = ((double)(bytes_read))/secs;
+    printf("Read %" PRId64 " bytes from Client rate=",bytes_read);
+    printRate(rate);
+    printf(" in %.4f seconds\n",secs);
     close(cs);
     exit(0);
 }
@@ -123,6 +160,7 @@ int main(int argc,char **argv) {
     char sabuff[SASIZE];
     char afstr[STRSIZE];
     int af;
+    int buffsize;
     void *csa; // client sockaddr
 
 
@@ -148,14 +186,14 @@ int main(int argc,char **argv) {
     }
 
 
-    if(argc<3) {
+    if(argc<4) {
         usage(argv[0]);
         exit(0);
     }
 
     lip = argv[1];
     lport = argv[2];
-
+    buffsize = atoi(argv[3]);
     csa = sabuff;
 
     memset(&hints,0,sizeof(hints));
@@ -218,7 +256,7 @@ int main(int argc,char **argv) {
                 fprintf(stderr,"Error forking\n");
                 break;
             case 0:
-                echo_server(cs);
+                echo_server(cs,buffsize);
             default:
                 close(cs);
                 break;

@@ -1,5 +1,5 @@
 BIN=./bin
-CF= -O0 -g -ggdb -I.
+CF= -O3 -g -ggdb -I.
 
 all: echo_server lookup echo_client tunnel_server http_hello test_ringcharbuff \
     test_regutil swallow_server swallow_client
@@ -70,5 +70,5 @@ test_regutil: test_regutil.o regutil.o
 
 clean:
 	rm -rf *.o
-	rm ./bin/.kdbg*
 	rm ./bin/*
+	rm ./bin/.kdbg*
