@@ -23,7 +23,7 @@ int swallow_client(int cs,int64_t data_size,int blocksize){
         return -1;
     }
     for(i=0;i<blocksize;i++){
-        block[i]=(char)i%256;
+        block[i]='x';
     }
 
     while(bytes_left > 0){
