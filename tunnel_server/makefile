@@ -2,7 +2,7 @@ BIN=./bin
 CF= -O0 -g -ggdb -I.
 
 all: echo_server lookup echo_client tunnel_server http_hello test_ringcharbuff \
-    test_regutil
+    test_regutil swallow_server swallow_client
 
 test_regutil.o: test_regutil.c
 	cc $(CF) -c test_regutil.c
@@ -15,6 +15,12 @@ regutil.o: regutil.h regutil.c regutil.h
 
 http_hello.o: http_hello.c
 	cc $(CF) -c http_hello.c
+
+swallow_client.o: swallow_client.c
+	cc $(CF) -c swallow_client.c
+
+swallow_server.o: swallow_server.c
+	cc $(CF) -c swallow_server.c
 
 tunnel_server.o: tunnel_server.c
 	cc $(CF) -c tunnel_server.c
@@ -44,8 +50,14 @@ lookup: lookup.o socktools.o
 echo_client: echo_client.o socktools.o ringcharbuff.o
 	cc $(CF) -o $(BIN)/echo_client echo_client.o socktools.o ringcharbuff.o
 
+swallow_client: swallow_client.o socktools.o ringcharbuff.o
+	cc $(CF) -o $(BIN)/swallow_client swallow_client.o socktools.o ringcharbuff.o
+
 tunnel_server: tunnel_server.o socktools.o ringcharbuff.o
 	cc $(CF) -o $(BIN)/tunnel_server tunnel_server.o socktools.o ringcharbuff.o
+
+swallow_server: swallow_server.o socktools.o ringcharbuff.o regutil.o
+	cc $(CF) -o $(BIN)/swallow_server swallow_server.o socktools.o ringcharbuff.o regutil.o -lpcre
 
 http_hello: http_hello.o socktools.o ringcharbuff.o regutil.o
 	cc $(CF) -o $(BIN)/http_hello http_hello.o socktools.o ringcharbuff.o regutil.o -lpcre

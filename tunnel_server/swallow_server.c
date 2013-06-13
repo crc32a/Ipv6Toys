@@ -1,4 +1,5 @@
 #include<sys/socket.h>
+#include<inttypes.h>
 #include<netinet/in.h>
 #include<arpa/inet.h>
 #include<sys/types.h>
@@ -11,7 +12,6 @@
 #include<netdb.h>
 #include<stdio.h>
 #include<errno.h>
-#include<inttypes.h>
 
 #include"socktools.h"
 #include"ringcharbuff.h"
@@ -32,7 +32,7 @@ int usage(char *prog) {
 }
 
 int echo_server(int cs) {
-    int64_t bytes_read = 0;
+    int64_t bytes_read=0;
     char *inptr;
     size_t nbytes;
     char outptr[BUFFSIZE + ECHOSIZE +1];
@@ -45,9 +45,8 @@ int echo_server(int cs) {
         if(nbytes==0) {
             break;
         }
-        nbytes = write(cs,outptr,nbytes+ECHOSIZE);
     }
-    printf("read %" PRId64 "bytes from client\n",bytes_read);
+    printf("Read %" PRId64 " bytes from Client\n",bytes_read);
     close(cs);
     exit(0);
 }
@@ -111,6 +110,7 @@ int bindsocket(struct addrinfo *la,struct addrinfo **aiout,FILE *fout) {
     return sd;
 }
 
+
 int main(int argc,char **argv) {
     char *lport;
     char tempstr[STRSIZE+1];
@@ -135,7 +135,7 @@ int main(int argc,char **argv) {
     int cs;  // incomming client socket
     int result;
     socklen_t alen;
-/*
+
     act.sa_handler=burydead;
     if(sigemptyset(&act.sa_mask)==-1) {
         perror("\nError callin sigemptyset: ");
@@ -146,7 +146,7 @@ int main(int argc,char **argv) {
        perror("\nCould not install SIGCHLD handler: ");
        exit(1);
     }
-*/
+
 
     if(argc<3) {
         usage(argv[0]);
@@ -187,16 +187,13 @@ int main(int argc,char **argv) {
 
     while(1) {
         alen = SASIZE;
-        printf("waiting for connection from client\n");
         cs = accept(ss,(struct sockaddr *)csa,&alen);
         if(cs == -1) {
             error = errno;
             strerror_r(error,tempstr,STRSIZE);
-            fprintf(stderr,"Error accepting connection:%i:%s on socket %i\n",error,tempstr,cs);
+            fprintf(stderr,"Error accepting connection:%i:%s\n",error,tempstr);
             continue;
         }
-
-        printf("new socket from client accepted. socket cs=%i\n",cs);
 
         afstr[0]='\0';
         af = (uint16_t)((struct sockaddr *)csa)->sa_family;
@@ -205,7 +202,7 @@ int main(int argc,char **argv) {
         result = getnameinfo((struct sockaddr*)csa,alen,hname,STRSIZE,
                              sname,STRSIZE,NI_NUMERICHOST|NI_NUMERICSERV);
 
-        printf("connection from client on socket cs=%i\n",cs);
+        fprintf(stderr,"connection from:");
 
         if(result == 0){
             format = "(%i(%s) addr=\"%s\" port=\"%s\")\n";
@@ -216,18 +213,13 @@ int main(int argc,char **argv) {
             fprintf(stderr,format,af,afstr,errorstr);
         }
 
-        printf("forking server\n");
-
         switch(fork()) {
             case -1:
                 fprintf(stderr,"Error forking\n");
                 break;
             case 0:
-                printf("invoking echo_server(%i)\n",cs);
                 echo_server(cs);
-                close(cs);
             default:
-                printf("server looping back to wait for new connection\n");
                 close(cs);
                 break;
         }
