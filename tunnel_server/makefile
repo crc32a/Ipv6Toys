@@ -2,7 +2,10 @@ BIN=./bin
 CF= -O3 -g -ggdb -I.
 
 all: echo_server lookup echo_client tunnel_server http_hello test_ringcharbuff \
-    test_regutil swallow_server swallow_client
+    test_regutil swallow_server swallow_client http_get
+
+http_get.o: http_get.c
+	cc $(CF) -c http_get.c
 
 test_regutil.o: test_regutil.c
 	cc $(CF) -c test_regutil.c
@@ -64,6 +67,9 @@ http_hello: http_hello.o socktools.o ringcharbuff.o regutil.o
 
 test_ringcharbuff: test_ringcharbuff.o ringcharbuff.o
 	cc $(CF) -o $(BIN)/test_ringcharbuff test_ringcharbuff.o ringcharbuff.o
+
+http_get: http_get.o socktools.o ringcharbuff.o
+	cc $(CF) -o $(BIN)/http_get http_get.o socktools.o ringcharbuff.o
 
 test_regutil: test_regutil.o regutil.o
 	cc $(CF) -o $(BIN)/test_regutil test_regutil.o regutil.o -lpcre

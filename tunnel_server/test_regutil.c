@@ -35,6 +35,7 @@ int main(int argc,char **argv){
     char patternStr[MAXSTR+1];
     char testStr[MAXSTR+1];
     int options=PCRE_CASELESS;
+    char *result;
 
     if(argc<2){
         usage(argv[0]);
@@ -49,8 +50,8 @@ int main(int argc,char **argv){
     }
     zero(patternStr,MAXSTR+1);
     zero(patternStr,MAXSTR+1);
-    fgets(patternStr,MAXSTR,fpi);
-    fgets(testStr,MAXSTR,fpi);
+    result = fgets(patternStr,MAXSTR,fpi);
+    result = fgets(testStr,MAXSTR,fpi);
     chop(patternStr);
     fclose(fpi);
     printf("patternStr = \"%s\"\ntestStr = \"%s\"\n",patternStr,testStr);
