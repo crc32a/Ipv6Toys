@@ -81,7 +81,7 @@ int hello_server(int cs,char *msg) {
     buildmessage(block,msg,BLOCKSIZE);
     nbytes = write(cs,block,strlen(block));
     printf("Wrote %i bytes\n",(int)nbytes);
-    shutdown(cs,SHUT_WR);
+    //shutdown(cs,SHUT_WR);
     while(nbytes>0){
         nbytes = read(cs,block,BLOCKSIZE);
         printf("read %i bytes\n",(int)nbytes);
@@ -179,6 +179,7 @@ int main(int argc,char **argv){
     struct addrinfo *ra;
     struct addrinfo *ca;
     struct sigaction act;
+    char client_msg[STRSIZE + 1];
     char tstr[STRSIZE + 1];
     char sabuff[SASIZE + 1];
     char sname[STRSIZE + 1];
@@ -284,12 +285,14 @@ int main(int argc,char **argv){
         fprintf(stderr,"connection from:");
 
         if(res == 0){
-            format = "(%i(%s) addr=\"%s\" port=\"%s\")\n";
-            fprintf(stderr,format,af,afstr,hname,sname);
+            format = "(%i(%s) addr=\"%s\" port=\"%s\") %s";
+            snprintf(client_msg,STRSIZE,format,af,afstr,hname,sname,msg);
+            fprintf(stderr,"%s\n",client_msg);
         } else {
             strncpy(errorstr,gai_strerror(res),STRSIZE);
-            format = "Unknown because: af=%i(%s)%s\n";
-            fprintf(stderr,format,af,afstr,errorstr);
+            format = "Unknown because: af=%i(%s)%s %s";
+            snprintf(client_msg,STRSIZE,format,af,afstr,errorstr,msg);
+            fprintf(stderr,"%s\n",client_msg);
         }
 
         switch(fork()) {
@@ -297,7 +300,7 @@ int main(int argc,char **argv){
                 fprintf(stderr,"Error forking\n");
                 break;
             case 0:
-                hello_server(cs,msg);
+                hello_server(cs,client_msg);
                 close(cs);
                 exit(0);
                 break;
