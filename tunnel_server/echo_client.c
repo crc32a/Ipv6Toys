@@ -13,7 +13,7 @@
 
 #define STRSIZE 1024
 #define BLOCKSIZE 4096
-#define INITRINGSIZE 16738
+#define INITRINGSIZE 4096*2
 
 int usage(char *prog) {
     printf("Usage is %s <host> <port> <ipv6|ipv4|any>\n",prog);
@@ -124,9 +124,10 @@ int echo_client(int cs){
                 printf("EOF on fd %i\n",cs);
                 return -1;
             }
-            if(bytesr>= ringcharbuff_used(cring)){
+            while(bytesr>= ringcharbuff_free(cring)){
                 size = ringcharbuff_size(cring);
                 size *= 2;
+                printf("increasing size of cring to %zi\n",size);
                 ringcharbuff_resize(cring,size,&err);
             }
             ringcharbuff_add(cring,block,bytesr);
@@ -139,9 +140,10 @@ int echo_client(int cs){
                 printf("EOF on fd %i\n",si);
                 return -1;
             }
-            if(bytesr>= ringcharbuff_used(sring)){
+            while(bytesr>= ringcharbuff_free(sring)){
                 size = ringcharbuff_size(sring);
                 size *= 2;
+                printf("increasing size of sring to %zi\n",size);
                 ringcharbuff_resize(sring,size,&err);
             }
             ringcharbuff_add(sring,block,bytesr);
@@ -216,6 +218,8 @@ int main(int argc, char **argv){
     port = argv[2];
     ipv = argv[3];
     uport = atoi(port);
+
+    fprintf(stderr,"mypid = %i\n",getpid());
 
     ai_family = get_ai_family(ipv);
     rc = lookup(host,port,ai_family,&res);
