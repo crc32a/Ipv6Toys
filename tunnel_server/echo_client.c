@@ -13,7 +13,7 @@
 
 #define STRSIZE 1024
 #define BLOCKSIZE 4096
-#define INITRINGSIZE 4096*2
+#define INITRINGSIZE 8192
 
 int usage(char *prog) {
     printf("Usage is %s <host> <port> <ipv6|ipv4|any>\n",prog);
