@@ -1,10 +1,12 @@
 #include<netinet/in.h>
 #include<sys/socket.h>
+#include<arpa/inet.h>
 #include<string.h>
 #include<stdlib.h>
 #include<ctype.h>
 #include<stdio.h>
 #include<netdb.h>
+#include<errno.h>
 
 #define STRSIZE 1024
 
@@ -148,19 +150,22 @@ int affamily2str(char *buff,size_t buffsize, int af) {
 
 int getipaddrstr(struct addrinfo *ai,char *hname,in_port_t  *port,socklen_t buffsize) {
     int error;
+    const char *rptr;
     struct sockaddr_in *sa4;
     struct sockaddr_in6 *sa6;
     switch(ai->ai_family) {
         case AF_INET:
             sa4 = (struct sockaddr_in *)ai->ai_addr;
             *port = ntohs(sa4->sin_port);
-            error = inet_ntop(AF_INET,&(sa4->sin_addr),hname,buffsize);
-            return error;
+            rptr = inet_ntop(AF_INET,&(sa4->sin_addr),hname,buffsize);
+            if(rptr == NULL) return errno;
+            return 0;
         case AF_INET6:
             sa6 = (struct sockaddr_in6 *)ai->ai_addr;
             *port = ntohs(sa6->sin6_port);
-            error = inet_ntop(AF_INET6,&(sa6->sin6_addr),hname,buffsize);
-            return error;
+            rptr = inet_ntop(AF_INET6,&(sa6->sin6_addr),hname,buffsize);
+            if(rptr == NULL) return errno; 
+            return 0;
         default:
             strncpy(hname,"ERROR",buffsize);
             return -1;

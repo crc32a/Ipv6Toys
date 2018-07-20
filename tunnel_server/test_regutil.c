@@ -29,36 +29,6 @@ int zero(char *str,int n){
     return 0;
 }
 
-int main(int argc,char **argv){
-    FILE *fpi;
-    char *file_name;
-    char patternStr[MAXSTR+1];
-    char testStr[MAXSTR+1];
-    int options=PCRE_CASELESS;
-    char *result;
-
-    if(argc<2){
-        usage(argv[0]);
-        exit(0);
-    }
-    file_name = argv[1];
-    printf("reading file %s\n",file_name);
-    fpi = fopen(file_name,"r");
-    if(fpi==NULL){
-        printf("Error opening %s\n",file_name);
-        exit(0);
-    }
-    zero(patternStr,MAXSTR+1);
-    zero(patternStr,MAXSTR+1);
-    result = fgets(patternStr,MAXSTR,fpi);
-    result = fgets(testStr,MAXSTR,fpi);
-    chop(patternStr);
-    fclose(fpi);
-    printf("patternStr = \"%s\"\ntestStr = \"%s\"\n",patternStr,testStr);
-    test_re(patternStr,testStr,options);
-    return 0;
-}
-
 int test_re(char *patternStr,char *testStr,int options) {
     char *error;
     char *group;
@@ -97,3 +67,34 @@ int test_re(char *patternStr,char *testStr,int options) {
     }
     return 0;
 }
+
+int main(int argc,char **argv){
+    FILE *fpi;
+    char *file_name;
+    char patternStr[MAXSTR+1];
+    char testStr[MAXSTR+1];
+    int options=PCRE_CASELESS;
+    char *result;
+
+    if(argc<2){
+        usage(argv[0]);
+        exit(0);
+    }
+    file_name = argv[1];
+    printf("reading file %s\n",file_name);
+    fpi = fopen(file_name,"r");
+    if(fpi==NULL){
+        printf("Error opening %s\n",file_name);
+        exit(0);
+    }
+    zero(patternStr,MAXSTR+1);
+    zero(patternStr,MAXSTR+1);
+    result = fgets(patternStr,MAXSTR,fpi);
+    result = fgets(testStr,MAXSTR,fpi);
+    chop(patternStr);
+    fclose(fpi);
+    printf("patternStr = \"%s\"\ntestStr = \"%s\"\n",patternStr,testStr);
+    test_re(patternStr,testStr,options);
+    return 0;
+}
+
